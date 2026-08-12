@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NVDLA 架构图解</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb;
+    --ink:#0b0b0b; --ink2:#52514e; --muted:#898781; --line:#e1e0d9;
+    --blue:#2a78d6; --orange:#eb6834; --aqua:#1baf7a;
+    --yellow:#eda100; --violet:#4a3aa7; --green:#008300;
+    --on-fill:#1a1a19; --on-blue:#ffffff; --on-violet:#ffffff;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      color-scheme: dark;
+      --page:#0d0d0d; --surface:#1a1a19;
+      --ink:#ffffff; --ink2:#c3c2b7; --muted:#898781; --line:#2c2c2a;
+      --blue:#3987e5; --orange:#d95926; --aqua:#199e70;
+      --yellow:#c98500; --violet:#9085e9; --green:#008300;
+      --on-violet:#1a1a19;
+    }
+  }
+  body{ margin:0; background:var(--page); color:var(--ink);
+        font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+        line-height:1.55; }
+  .wrap{ max-width:1260px; margin:0 auto; padding:28px 20px 64px; }
+  h1{ font-size:22px; margin:0 0 4px; }
+  .sub{ color:var(--ink2); font-size:13px; margin-bottom:20px; }
+  .legend{ display:flex; flex-wrap:wrap; gap:10px 20px; align-items:center;
+           font-size:12px; color:var(--ink2); padding:10px 14px;
+           border:1px solid var(--line); border-radius:10px;
+           margin-bottom:28px; background:var(--surface); }
+  .legend .sw{ width:13px; height:13px; border-radius:3px; display:inline-block;
+               margin-right:6px; vertical-align:-2px;
+               border:1px solid rgba(11,11,11,.18); }
+  section{ margin-bottom:44px; }
+  h2{ font-size:17px; margin:0 0 2px; }
+  p.desc{ color:var(--ink2); font-size:13px; margin:2px 0 12px; }
+  .card{ background:var(--surface); border:1px solid var(--line);
+         border-radius:12px; padding:16px 14px 10px; }
+  svg{ display:block; width:100%; height:auto; }
+  .box{ transition:filter .15s; }
+  .box:hover{ filter:brightness(1.08); }
+  .t-b{ font-weight:600; }
+  footer{ color:var(--muted); font-size:12px; margin-top:8px; }
+  footer a{ color:var(--ink2); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>NVDLA（NVIDIA Deep Learning Accelerator）架构图解</h1>
+<div class="sub">NPU 原型验证系统参考架构 · 2026-08-12 · 与《NVDLA架构学习笔记.md》配套 · 自动适配明暗主题</div>
+
+<div class="legend">
+  <span><i class="sw" style="background:var(--blue)"></i>计算引擎</span>
+  <span><i class="sw" style="background:var(--orange)"></i>片上存储</span>
+  <span><i class="sw" style="background:var(--aqua)"></i>DMA / 搬运</span>
+  <span><i class="sw" style="background:var(--yellow)"></i>外部存储</span>
+  <span><i class="sw" style="background:var(--violet)"></i>配置总线 CSB</span>
+  <span><i class="sw" style="background:var(--green)"></i>数据总线 DBB（AXI4）</span>
+  <span>虚线 = 可选 / 融合数据通路</span>
+</div>
+
+<!-- ============ ① SoC 集成视图 ============ -->
+<section>
+<h2>① SoC 集成视图（FPGA 原型验证视角）</h2>
+<p class="desc">NVDLA 是挂在 SoC 上的协处理器：CPU 经 CSB 配置它、经中断获知任务完成；数据经 DBB（AXI4）在引擎与 DRAM 之间流动。CSB（慢）与 DBB（快）彻底分离。</p>
+<div class="card">
+<svg viewBox="0 0 920 560" role="img" aria-label="NVDLA SoC 集成视图">
+  <defs>
+    <marker id="d1-v" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--violet)"/></marker>
+    <marker id="d1-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--green)"/></marker>
+    <marker id="d1-o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--orange)"/></marker>
+    <marker id="d1-k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink2)"/></marker>
+  </defs>
+
+  <!-- CPU -->
+  <rect class="box" x="40" y="50" width="190" height="90" rx="8" style="fill:var(--blue)">
+    <title>CPU：运行驱动，逐层下发配置，等待中断</title></rect>
+  <text x="135" y="88" text-anchor="middle" class="t-b" font-size="14" style="fill:var(--on-blue)">CPU</text>
+  <text x="135" y="110" text-anchor="middle" font-size="12" style="fill:var(--on-blue)">ARM / RISC-V</text>
+  <text x="135" y="128" text-anchor="middle" font-size="12" style="fill:var(--on-blue)">驱动 + 任务调度</text>
+
+  <!-- NVDLA Core -->
+  <rect x="420" y="30" width="440" height="300" rx="10"
+        style="fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:6 4"/>
+  <text x="640" y="52" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--ink)">NVDLA Core</text>
+
+  <rect class="box" x="448" y="80" width="190" height="56" rx="8" style="fill:var(--violet)">
+    <title>配置空间：每模块独立寄存器组（乒乓双缓冲）</title></rect>
+  <text x="543" y="102" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-violet)">配置空间</text>
+  <text x="543" y="122" text-anchor="middle" font-size="11" style="fill:var(--on-violet)">CSB 寄存器（乒乓）</text>
+
+  <rect class="box" x="660" y="80" width="180" height="56" rx="8" style="fill:var(--blue)">
+    <title>卷积 + 后处理引擎</title></rect>
+  <text x="750" y="102" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">卷积 + 后处理</text>
+  <text x="750" y="122" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">引擎（SDP/PDP…）</text>
+
+  <rect class="box" x="448" y="170" width="190" height="56" rx="8" style="fill:var(--orange)">
+    <title>片上 SRAM：CBUF + CMEM 共 1MB</title></rect>
+  <text x="543" y="192" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">片上 SRAM</text>
+  <text x="543" y="212" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">CBUF + CMEM（1MB）</text>
+
+  <rect class="box" x="660" y="170" width="180" height="56" rx="8" style="fill:var(--aqua)">
+    <title>MCIF：仲裁所有引擎的外部访存</title></rect>
+  <text x="750" y="192" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">MCIF</text>
+  <text x="750" y="212" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">访存仲裁</text>
+
+  <line x1="638" y1="108" x2="660" y2="108" stroke-width="1.5" style="stroke:var(--ink2)" marker-end="url(#d1-k)"/>
+  <line x1="543" y1="136" x2="543" y2="170" stroke-width="1.5" style="stroke:var(--ink2)" marker-end="url(#d1-k)"/>
+  <line x1="750" y1="136" x2="750" y2="170" stroke-width="1.5" style="stroke:var(--ink2)" marker-end="url(#d1-k)"/>
+  <line x1="660" y1="198" x2="638" y2="198" stroke-width="1.5" style="stroke:var(--ink2)"
+        marker-start="url(#d1-k)" marker-end="url(#d1-k)"/>
+
+  <!-- CSB / 中断 -->
+  <line x1="230" y1="110" x2="420" y2="110" stroke-width="2.5" style="stroke:var(--violet)" marker-end="url(#d1-v)"/>
+  <text x="325" y="100" text-anchor="middle" font-size="12" style="fill:var(--ink2)">CSB：寄存器读写（低带宽）</text>
+  <line x1="230" y1="70" x2="420" y2="70" stroke-width="1.5" stroke-dasharray="5 4" style="stroke:var(--ink2)" marker-end="url(#d1-k)"/>
+  <text x="325" y="60" text-anchor="middle" font-size="12" style="fill:var(--ink2)">中断：任务完成</text>
+
+  <!-- AXI 互联 / DRAM -->
+  <rect class="box" x="40" y="330" width="190" height="60" rx="8" style="fill:var(--green)">
+    <title>AXI 互联：CPU 与 NVDLA 共享 DRAM</title></rect>
+  <text x="135" y="356" text-anchor="middle" class="t-b" font-size="13" style="fill:#ffffff">AXI 互联</text>
+  <text x="135" y="376" text-anchor="middle" font-size="11" style="fill:#ffffff">AXI4 交叉开关</text>
+
+  <rect class="box" x="40" y="450" width="190" height="80" rx="8" style="fill:var(--yellow)">
+    <title>DDR DRAM：权重 / 激活 / 中间结果 / 输出</title></rect>
+  <text x="135" y="482" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">DDR DRAM</text>
+  <text x="135" y="504" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">权重 / 激活 / 结果</text>
+
+  <path d="M750,226 L750,330 L230,330" fill="none" stroke-width="2.5"
+        style="stroke:var(--green)" marker-end="url(#d1-g)"/>
+  <text x="490" y="322" text-anchor="middle" font-size="12" style="fill:var(--ink2)">DBB（AXI4 数据总线，高带宽）</text>
+  <line x1="135" y1="390" x2="135" y2="450" stroke-width="2" style="stroke:var(--green)" marker-end="url(#d1-g)"/>
+
+  <!-- 可选 CVSRAM -->
+  <rect x="420" y="440" width="210" height="70" rx="8"
+        style="fill:none;stroke:var(--orange);stroke-width:1.5;stroke-dasharray:6 4"/>
+  <text x="525" y="470" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--ink2)">可选：片上 SRAM</text>
+  <text x="525" y="490" text-anchor="middle" font-size="11" style="fill:var(--ink2)">（CVSRAM / SRAMIF）</text>
+  <line x1="525" y1="440" x2="525" y2="332" stroke-width="1.5" stroke-dasharray="5 4"
+        style="stroke:var(--orange)" marker-end="url(#d1-o)"/>
+  <text x="537" y="392" font-size="11" style="fill:var(--ink2)">SRAMIF</text>
+
+  <text x="460" y="528" text-anchor="middle" font-size="12" style="fill:var(--ink2)">
+    要点：CPU 与 NVDLA 挂同一 AXI 互联共享 DRAM；CSB 管配置（慢）、DBB 管数据（快）
+  </text>
+</svg>
+</div>
+</section>
+
+<!-- ============ ② 内部模块架构 ============ -->
+<section>
+<h2>② NVDLA Core 内部模块架构</h2>
+<p class="desc">五级卷积流水线（CDMA→CBUF→CSC→CMAC→CACC）+ 后处理分区（SDP/PDP/CDP，共用 CMEM）+ 搬运/重整引擎（RUBIK/BDMA）；所有引擎挂同一 CSB，外部访存统一经 MCIF 仲裁走 AXI。</p>
+<div class="card">
+<svg viewBox="0 0 1100 760" role="img" aria-label="NVDLA 内部模块架构">
+  <defs>
+    <marker id="d2-k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink2)"/></marker>
+    <marker id="d2-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--green)"/></marker>
+  </defs>
+
+  <!-- CSB bus -->
+  <line x1="70" y1="60" x2="70" y2="700" stroke-width="2.5" style="stroke:var(--violet)"/>
+  <text transform="rotate(-90)" x="-390" y="48" text-anchor="middle" font-size="12" style="fill:var(--ink2)">
+    CSB 配置总线（低带宽，类似 AHB-Lite）</text>
+  <line x1="70" y1="140" x2="200" y2="140" stroke-width="1.5" style="stroke:var(--violet)"/>
+  <line x1="70" y1="500" x2="560" y2="500" stroke-width="1.5" style="stroke:var(--violet)"/>
+  <line x1="70" y1="590" x2="370" y2="590" stroke-width="1.5" style="stroke:var(--violet)"/>
+  <line x1="70" y1="665" x2="200" y2="665" stroke-width="1.5" style="stroke:var(--violet)"/>
+
+  <!-- ① 卷积流水线 -->
+  <text x="560" y="96" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--ink)">① 卷积流水线（五级）</text>
+
+  <rect class="box" x="200" y="110" width="130" height="60" rx="8" style="fill:var(--aqua)">
+    <title>CDMA：从 DRAM 取权重/激活</title></rect>
+  <text x="265" y="135" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">CDMA</text>
+  <text x="265" y="153" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">卷积 DMA</text>
+
+  <rect class="box" x="370" y="110" width="150" height="60" rx="8" style="fill:var(--orange)">
+    <title>CBUF：512KB，权重与激活分 bank 存储</title></rect>
+  <text x="445" y="135" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">CBUF</text>
+  <text x="445" y="153" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">512KB SRAM</text>
+
+  <rect class="box" x="560" y="110" width="130" height="60" rx="8" style="fill:var(--blue)">
+    <title>CSC：调度 CBUF→CMAC 数据流</title></rect>
+  <text x="625" y="135" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">CSC</text>
+  <text x="625" y="153" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">调度器</text>
+
+  <rect class="box" x="730" y="110" width="150" height="60" rx="8" style="fill:var(--blue)">
+    <title>CMAC：2048 个 INT8 MAC（详见第④图）</title></rect>
+  <text x="805" y="135" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">CMAC（A/B）</text>
+  <text x="805" y="153" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">2048×INT8 MAC</text>
+
+  <rect class="box" x="920" y="110" width="140" height="60" rx="8" style="fill:var(--blue)">
+    <title>CACC：累加部分和，装配后送 SDP</title></rect>
+  <text x="990" y="135" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">CACC</text>
+  <text x="990" y="153" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">累加器</text>
+
+  <line x1="330" y1="140" x2="370" y2="140" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d2-k)"/>
+  <text x="350" y="132" text-anchor="middle" font-size="11" style="fill:var(--ink2)">权重+激活</text>
+  <line x1="520" y1="140" x2="560" y2="140" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d2-k)"/>
+  <text x="540" y="132" text-anchor="middle" font-size="11" style="fill:var(--ink2)">取数</text>
+  <line x1="690" y1="140" x2="730" y2="140" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d2-k)"/>
+  <text x="710" y="132" text-anchor="middle" font-size="11" style="fill:var(--ink2)">调度</text>
+  <line x1="880" y1="140" x2="920" y2="140" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d2-k)"/>
+  <text x="900" y="132" text-anchor="middle" font-size="11" style="fill:var(--ink2)">部分和</text>
+
+  <!-- fused -->
+  <path d="M990,170 L990,270 L470,270 L470,310" fill="none" stroke-width="2"
+        stroke-dasharray="6 4" style="stroke:var(--ink2)" marker-end="url(#d2-k)"/>
+  <text x="730" y="262" text-anchor="middle" font-size="11" style="fill:var(--ink2)">
+    fused：CACC→SDP 直连（on-the-fly，不落 DRAM）</text>
+
+  <!-- ② 后处理分区 -->
+  <text x="560" y="296" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--ink)">② 后处理分区（Partition P）</text>
+
+  <rect class="box" x="370" y="310" width="130" height="60" rx="8" style="fill:var(--blue)">
+    <title>SDP：BN / bias / scale / ReLU / LUT</title></rect>
+  <text x="435" y="335" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">SDP</text>
+  <text x="435" y="353" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">BN/bias/ReLU/LUT</text>
+
+  <rect class="box" x="560" y="310" width="130" height="60" rx="8" style="fill:var(--blue)">
+    <title>PDP：池化 max/min/mean</title></rect>
+  <text x="625" y="335" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">PDP</text>
+  <text x="625" y="353" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">池化 max/min/mean</text>
+
+  <rect class="box" x="730" y="310" width="150" height="60" rx="8" style="fill:var(--blue)">
+    <title>CDP：跨通道 LUT 运算（LRN 等）</title></rect>
+  <text x="805" y="335" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">CDP</text>
+  <text x="805" y="353" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">LUT 通道运算</text>
+
+  <rect class="box" x="920" y="310" width="140" height="60" rx="8" style="fill:var(--orange)">
+    <title>CMEM：后处理工作存储 512KB</title></rect>
+  <text x="990" y="335" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">CMEM</text>
+  <text x="990" y="353" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">512KB SRAM</text>
+
+  <line x1="500" y1="340" x2="560" y2="340" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d2-k)"/>
+  <text x="530" y="332" text-anchor="middle" font-size="11" style="fill:var(--ink2)">on-the-fly</text>
+  <line x1="690" y1="340" x2="730" y2="340" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d2-k)"/>
+  <text x="710" y="332" text-anchor="middle" font-size="11" style="fill:var(--ink2)">on-the-fly</text>
+  <line x1="880" y1="340" x2="920" y2="340" stroke-width="2" style="stroke:var(--ink2)"
+        marker-start="url(#d2-k)" marker-end="url(#d2-k)"/>
+  <text x="900" y="332" text-anchor="middle" font-size="11" style="fill:var(--ink2)">中间结果</text>
+
+  <text x="560" y="392" text-anchor="middle" font-size="11" style="fill:var(--muted)">
+    SDP / PDP / CDP 共用 CMEM（512KB）作为工作存储</text>
+
+  <!-- ③ 搬运/重整引擎 -->
+  <text x="575" y="455" class="t-b" font-size="13" style="fill:var(--ink)">③ 搬运 / 重整引擎（旁路流水线，可并发执行）</text>
+
+  <rect class="box" x="560" y="470" width="130" height="60" rx="8" style="fill:var(--aqua)">
+    <title>RUBIK：reshape / transpose / 格式转换</title></rect>
+  <text x="625" y="495" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">RUBIK</text>
+  <text x="625" y="513" text-anchor="middle" font-size="10.5" style="fill:var(--on-fill)">数据重整 / 转置</text>
+
+  <rect class="box" x="370" y="560" width="150" height="60" rx="8" style="fill:var(--aqua)">
+    <title>BDMA：DRAM ↔ 片上 SRAM 批量搬运</title></rect>
+  <text x="445" y="585" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">BDMA</text>
+  <text x="445" y="603" text-anchor="middle" font-size="10.5" style="fill:var(--on-fill)">批量搬运（旁路）</text>
+
+  <!-- MCIF -->
+  <rect class="box" x="200" y="640" width="860" height="50" rx="8" style="fill:var(--green)">
+    <title>MCIF：仲裁所有引擎的外部访存，统一走 AXI</title></rect>
+  <text x="630" y="662" text-anchor="middle" class="t-b" font-size="13" style="fill:#ffffff">MCIF：外部访存仲裁</text>
+  <text x="630" y="680" text-anchor="middle" font-size="11" style="fill:#ffffff">统一经 DBB（AXI4）访问 DRAM</text>
+
+  <line x1="265" y1="640" x2="265" y2="170" stroke-width="1.5" style="stroke:var(--green)"
+        marker-start="url(#d2-g)" marker-end="url(#d2-g)"/>
+  <line x1="625" y1="640" x2="625" y2="530" stroke-width="1.5" style="stroke:var(--green)"
+        marker-start="url(#d2-g)" marker-end="url(#d2-g)"/>
+  <line x1="445" y1="640" x2="445" y2="620" stroke-width="1.5" style="stroke:var(--green)"
+        marker-start="url(#d2-g)" marker-end="url(#d2-g)"/>
+  <text x="700" y="608" font-size="11" style="fill:var(--muted)">
+    SDP / PDP / CDP 独立模式时同样经 MCIF 访问 DRAM（简化未画）</text>
+
+  <text x="550" y="738" text-anchor="middle" font-size="11" style="fill:var(--muted)">
+    CSB：每个引擎都有独立寄存器组（乒乓双缓冲），CPU 逐层配置</text>
+</svg>
+</div>
+</section>
+
+<!-- ============ ③ 卷积数据流 ============ -->
+<section>
+<h2>③ 单个卷积层的数据流</h2>
+<p class="desc">权重/激活从 DRAM 经 CDMA 进 CBUF → CSC 调度送 CMAC 计算 → CACC 累加 → SDP 融合后处理（BN/bias/ReLU）→ 结果写回 DRAM。</p>
+<div class="card">
+<svg viewBox="0 0 1320 500" role="img" aria-label="NVDLA 单层卷积数据流">
+  <defs>
+    <marker id="d3-k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink2)"/></marker>
+  </defs>
+
+  <!-- 主流水线 -->
+  <rect class="box" x="40" y="140" width="130" height="70" rx="8" style="fill:var(--yellow)">
+    <title>DRAM：权重 + 输入激活</title></rect>
+  <text x="105" y="168" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">DRAM</text>
+  <text x="105" y="188" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">权重 + 输入激活</text>
+
+  <rect class="box" x="210" y="140" width="130" height="70" rx="8" style="fill:var(--aqua)">
+    <title>CDMA：从 DRAM 取数（权重/激活/WMB）</title></rect>
+  <text x="275" y="168" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">CDMA</text>
+  <text x="275" y="188" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">取数（DMA）</text>
+
+  <rect class="box" x="380" y="140" width="140" height="70" rx="8" style="fill:var(--orange)">
+    <title>CBUF：512KB 缓存，命中免重复读 DRAM</title></rect>
+  <text x="450" y="168" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-fill)">CBUF</text>
+  <text x="450" y="188" text-anchor="middle" font-size="11" style="fill:var(--on-fill)">缓存（512KB）</text>
+
+  <rect class="box" x="560" y="140" width="130" height="70" rx="8" style="fill:var(--blue)">
+    <title>CSC：序列控制器，调度数据流</title></rect>
+  <text x="625" y="168" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">CSC</text>
+  <text x="625" y="188" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">调度</text>
+
+  <rect class="box" x="730" y="140" width="140" height="70" rx="8" style="fill:var(--blue)">
+    <title>CMAC：2048 INT8 MAC 计算</title></rect>
+  <text x="800" y="168" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">CMAC</text>
+  <text x="800" y="188" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">计算（2048 MAC）</text>
+
+  <rect class="box" x="910" y="140" width="130" height="70" rx="8" style="fill:var(--blue)">
+    <title>CACC：跨 stripe 累加部分和</title></rect>
+  <text x="975" y="168" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">CACC</text>
+  <text x="975" y="188" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">累加</text>
+
+  <rect class="box" x="1080" y="140" width="140" height="70" rx="8" style="fill:var(--blue)">
+    <title>SDP：BN / bias / ReLU / 截断</title></rect>
+  <text x="1150" y="168" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--on-blue)">SDP</text>
+  <text x="1150" y="188" text-anchor="middle" font-size="11" style="fill:var(--on-blue)">BN/bias/ReLU</text>
+
+  <line x1="170" y1="175" x2="210" y2="175" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d3-k)"/>
+  <text x="190" y="167" text-anchor="middle" font-size="11" style="fill:var(--ink2)">取权重/激活</text>
+  <line x1="340" y1="175" x2="380" y2="175" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d3-k)"/>
+  <text x="360" y="167" text-anchor="middle" font-size="11" style="fill:var(--ink2)">存入</text>
+  <line x1="510" y1="175" x2="560" y2="175" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d3-k)"/>
+  <text x="535" y="167" text-anchor="middle" font-size="11" style="fill:var(--ink2)">读出</text>
+  <line x1="690" y1="175" x2="730" y2="175" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d3-k)"/>
+  <text x="710" y="167" text-anchor="middle" font-size="11" style="fill:var(--ink2)">流送</text>
+  <line x1="870" y1="175" x2="910" y2="175" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d3-k)"/>
+  <text x="890" y="167" text-anchor="middle" font-size="11" style="fill:var(--ink2)">部分和</text>
+  <line x1="1040" y1="175" x2="1080" y2="175" stroke-width="2" stroke-dasharray="6 4" style="stroke:var(--ink2)" marker-end="url(#d3-k)"/>
+  <text x="1060" y="167" text-anchor="middle" font-size="11" style="fill:var(--ink2)">fused（on-the-fly）</text>
+  <line x1="1220" y1="175" x2="1290" y2="175" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d3-k)"/>
+  <text x="1255" y="167" text-anchor="middle" font-size="11" style="fill:var(--ink2)">写回 DRAM</text>
+
+  <!-- 注释卡 -->
+  <g style="fill:none;stroke:var(--ink2);stroke-width:1.2">
+    <rect x="40" y="280" width="400" height="112" rx="10"/>
+    <rect x="460" y="280" width="400" height="112" rx="10"/>
+    <rect x="880" y="280" width="400" height="112" rx="10"/>
+  </g>
+  <text x="240" y="306" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--ink)">① 带宽控制的关键：CBUF</text>
+  <text x="240" y="332" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 权重 + 激活先进 CBUF，命中则不读 DRAM</text>
+  <text x="240" y="354" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 缓存不下 → 激活重复读 N 次（buffer ↔ 带宽权衡）</text>
+  <text x="240" y="376" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 权重驻留 CMAC 寄存器 → 三级数据复用</text>
+
+  <text x="660" y="306" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--ink)">② 乒乓双缓冲（per-layer 编程）</text>
+  <text x="660" y="332" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 寄存器双缓冲：上一 layer 在算、下一 layer 在配</text>
+  <text x="660" y="354" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 引擎计算不空等 CPU 配置</text>
+  <text x="660" y="376" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 一个 layer = 一组寄存器配置 + 数据描述</text>
+
+  <text x="1080" y="306" text-anchor="middle" class="t-b" font-size="13" style="fill:var(--ink)">③ 融合 vs 独立模式</text>
+  <text x="1080" y="332" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 融合（常用）：CACC→SDP→PDP on-the-fly 直连</text>
+  <text x="1080" y="354" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 省一次 DRAM 读写 → 带宽翻倍利用</text>
+  <text x="1080" y="376" text-anchor="middle" font-size="11" style="fill:var(--ink2)">· 独立：每引擎 memory-to-memory（调试用）</text>
+
+  <text x="660" y="440" text-anchor="middle" font-size="13" style="fill:var(--ink2)">
+    编译器逐层下发配置、引擎流水执行 —— 这就是 NVDLA 的 per-layer 编程模型
+  </text>
+</svg>
+</div>
+</section>
+
+<!-- ============ ④ CMAC 阵列 ============ -->
+<section>
+<h2>④ CMAC：2048 个 INT8 MAC 的构成</h2>
+<p class="desc">16 个 MAC cell × 每 cell 128 个 INT8 MAC = 2048；INT8 吞吐是 INT16/FP16 的两倍。理解 MAC 阵列组织方式是看懂所有 AI 芯片的基础。</p>
+<div class="card">
+<svg viewBox="0 0 900 460" role="img" aria-label="CMAC 计算阵列结构">
+  <defs>
+    <marker id="d4-k" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill:var(--ink2)"/></marker>
+  </defs>
+
+  <rect x="40" y="40" width="820" height="300" rx="12"
+        style="fill:none;stroke:var(--muted);stroke-width:1.5;stroke-dasharray:6 4"/>
+  <text x="60" y="70" class="t-b" font-size="13" style="fill:var(--ink)">CMAC：卷积 MAC 阵列（2048 × INT8）</text>
+
+  <g>
+    <rect class="box" x="80" y="90" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="165" y="111" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="165" y="129" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="270" y="90" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="355" y="111" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="355" y="129" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="460" y="90" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="545" y="111" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="545" y="129" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="650" y="90" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="735" y="111" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="735" y="129" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+
+    <rect class="box" x="80" y="155" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="165" y="176" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="165" y="194" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="270" y="155" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="355" y="176" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="355" y="194" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="460" y="155" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="545" y="176" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="545" y="194" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="650" y="155" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="735" y="176" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="735" y="194" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+
+    <rect class="box" x="80" y="220" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="165" y="241" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="165" y="259" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="270" y="220" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="355" y="241" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="355" y="259" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="460" y="220" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="545" y="241" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="545" y="259" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="650" y="220" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="735" y="241" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="735" y="259" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+
+    <rect class="box" x="80" y="285" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="165" y="306" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="165" y="324" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="270" y="285" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="355" y="306" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="355" y="324" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="460" y="285" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="545" y="306" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="545" y="324" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+    <rect class="box" x="650" y="285" width="170" height="48" rx="6" style="fill:var(--blue)"/>
+    <text x="735" y="306" text-anchor="middle" class="t-b" font-size="12" style="fill:var(--on-blue)">MAC Cell</text>
+    <text x="735" y="324" text-anchor="middle" font-size="10.5" style="fill:var(--on-blue)">128×INT8</text>
+  </g>
+
+  <line x1="8" y1="190" x2="40" y2="190" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d4-k)"/>
+  <text x="24" y="170" text-anchor="middle" font-size="11" style="fill:var(--ink2)">输入：激活 + 权重</text>
+  <text x="24" y="184" text-anchor="middle" font-size="11" style="fill:var(--ink2)">（来自 CSC / CBUF）</text>
+  <line x1="860" y1="190" x2="896" y2="190" stroke-width="2" style="stroke:var(--ink2)" marker-end="url(#d4-k)"/>
+  <text x="878" y="170" text-anchor="middle" font-size="11" style="fill:var(--ink2)">输出：部分和</text>
+  <text x="878" y="184" text-anchor="middle" font-size="11" style="fill:var(--ink2)">（送 CACC）</text>
+
+  <text x="60" y="378" font-size="12" style="fill:var(--ink2)">· 16 cell × 128 = 2048 个 INT8 MAC；INT16 / FP16 时为 1024 个</text>
+  <text x="60" y="400" font-size="12" style="fill:var(--ink2)">· 每 cell：64 个 16-bit 乘法器 + 72 个加法器（Winograd 后处理）</text>
+  <text x="60" y="422" font-size="12" style="fill:var(--ink2)">· INT8 模式把 16-bit 乘法器拆成两个 → 吞吐翻倍；空闲 cell 自动时钟门控省电</text>
+  <text x="60" y="444" font-size="12" style="fill:var(--ink2)">· 物理上分 CMAC_A / CMAC_B 两个半区，各有独立 CSB 端口</text>
+</svg>
+</div>
+</section>
+
+<footer>
+  资料来源：NVDLA Primer（nvdla.org）、Unit Description、HotChips 30 演讲、nvdla/hw 仓库（github.com/nvdla）。
+  配色遵循 data-viz 参考调色板（明暗双主题，文本对比度 ≥ 3:1）。悬停色块可看说明。
+</footer>
+
+</div>
+</body>
+</html>
