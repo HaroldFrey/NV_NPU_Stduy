@@ -11,10 +11,12 @@
 ## 目录内容
 
 | 文件 | 说明 |
-|---|---|
+| --- | --- |
 | [NVDLA架构学习笔记.md](NVDLA架构学习笔记.md) | 架构深度分析：总体架构 / 五级卷积流水线 / 后处理分区 / 总线与编程模型 / 关键参数 / **FPGA 原型验证启示** |
 | [NVDLA架构图解.html](NVDLA架构图解.html) | 可视化架构图（浏览器打开，自动适配明暗主题）：SoC 集成视图 / 内部模块架构 / 单层卷积数据流 / CMAC 阵列 |
 | [CUDA软件栈概念笔记.md](CUDA软件栈概念笔记.md) | CUDA / PTX / SASS / CUBIN 概念整理（编译流水线、compute capability、FPGA 类比） |
+| [NVIDIA工具链与自研NPU验证笔记.md](NVIDIA工具链与自研NPU验证笔记.md) | 自研 NPU + 兼容 NVIDIA 工具链的验证方法：全链路、兼容层次、检查点、golden 比对 |
+| [NPU与GPU概念笔记.md](NPU与GPU概念笔记.md) | NPU 与 GPU 的本质区别：定义、核心对比、边界模糊化趋势、对验证工作的意义 |
 
 ## 核心结论（速览）
 
