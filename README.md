@@ -31,7 +31,7 @@
 
 ## 参考资料
 
-- [NVIDIA H100 Whitepaper](https://resources.nvidia.com/en-us-tensor-core)
+- [NVIDIA H100 GPU Whitepaper（官方，填表单获取 PDF）](https://resources.nvidia.com/en-us-hopper-architecture/nvidia-h100-tensor-c)
 - [NVIDIA Hopper Architecture In-Depth](https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/)
 - [Deep Dive on the Hopper TMA Unit（PyTorch）](https://pytorch.org/blog/hopper-tma-unit/)
 - [PTX ISA 文档（wgmma / cp.async.bulk / mbarrier）](https://docs.nvidia.com/cuda/parallel-thread-execution/)
